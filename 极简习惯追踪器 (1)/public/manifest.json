@@ -1,0 +1,16 @@
+{
+  "short_name": "极简习惯",
+  "name": "极简习惯追踪器 | Minimalist Habit Tracker",
+  "icons": [
+    {
+      "src": "/icon.jpg",
+      "type": "image/jpeg",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "display": "standalone",
+  "orientation": "portrait"
+}
