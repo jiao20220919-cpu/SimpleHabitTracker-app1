@@ -1,6 +1,0 @@
-{
-  "name": "极简习惯追踪器",
-  "description": "一款使用 Material Design 风格设计的极简习惯追踪器，支持打卡与连续天数统计。",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

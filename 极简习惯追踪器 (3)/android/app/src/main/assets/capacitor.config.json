@@ -1,8 +1,0 @@
-{
-	"appId": "com.minimalhabit.app",
-	"appName": "极简习惯追踪器",
-	"webDir": "dist",
-	"server": {
-		"androidScheme": "https"
-	}
-}
