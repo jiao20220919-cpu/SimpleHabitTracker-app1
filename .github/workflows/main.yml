@@ -25,9 +25,9 @@ jobs:
           if [ -n "$TARGET_DIR" ] && [ "$TARGET_DIR" != "." ]; then
             echo "✨ Found package.json in subdirectory: $TARGET_DIR"
             echo "Moving all files from $TARGET_DIR to the repository root..."
-            # Move all files (including hidden ones, excluding . and ..)
-            find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec mv -t . {} +
-            # Remove the now empty subdirectory
+            # Use rsync to safely merge all folders and files into the root (including hidden ones)
+            rsync -a "$TARGET_DIR/" .
+            # Remove the now redundant subdirectory
             rm -rf "$TARGET_DIR"
             echo "✅ Successfully consolidated project files to repository root."
             ls -la
