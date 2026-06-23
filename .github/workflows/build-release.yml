@@ -1,0 +1,114 @@
+name: Build Signed Android AAB & APK for Google Play
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Consolidate Project Files (Auto-fix for drag-and-drop subfolder uploads)
+      run: |
+        if [ ! -f package.json ]; then
+          echo "⚠️ package.json not found in root. Searching in subfolders..."
+          TARGET_FILE=$(find . -maxdepth 3 -name "package.json" ! -path "*/node_modules/*" -print -quit)
+          if [ -n "$TARGET_FILE" ]; then
+            TARGET_DIR=$(dirname "$TARGET_FILE")
+            if [ "$TARGET_DIR" != "." ]; then
+              echo "✨ Found package.json in subdirectory: $TARGET_DIR"
+              echo "Moving all files from $TARGET_DIR to the repository root..."
+              # Use rsync to safely merge all folders and files into the root (including hidden ones)
+              rsync -a "$TARGET_DIR/" .
+              # Remove the now redundant subdirectory
+              rm -rf "$TARGET_DIR"
+              echo "✅ Successfully consolidated project files to repository root."
+              ls -la
+            fi
+          else
+            echo "❌ Error: Could not find package.json in the repository!"
+            exit 1
+          fi
+        else
+          echo "✅ package.json is already in the root directory. No consolidation needed."
+        fi
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install dependencies
+      run: |
+        rm -rf package-lock.json node_modules
+        npm install --include=optional
+        # Force install the Linux x64 native binary for Tailwind CSS v4 in case of npm bug
+        npm install @tailwindcss/oxide-linux-x64-gnu
+
+    - name: Build Web App & Sync Capacitor
+      run: |
+        npm run build
+        npx cap sync
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '21'
+
+    - name: Repair Gradlew and Wrapper (fixes Windows line-endings and corrupt wrapper jar bugs)
+      run: |
+        # Fix line endings in the gradlew bash script in case it was checked in with CRLF from Windows
+        sed -i -e 's/\r$//' android/gradlew
+        # Generate a fresh, uncorrupted gradle-wrapper.jar using the preinstalled gradle command in GitHub Actions runner
+        cd android
+        gradle wrapper --gradle-version 8.14.3
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Build Android Release Bundle (AAB) & APK with Gradle
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew bundleRelease assembleRelease
+
+    - name: Sign App Bundle (AAB) & APK (If Secrets Available)
+      if: ${{ env.SIGNING_KEY != '' }}
+      uses: r0adkll/sign-android-release@v1
+      id: sign_app
+      with:
+        releaseDirectory: android/app/build/outputs/bundle/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Sign APK (If Secrets Available)
+      if: ${{ env.SIGNING_KEY != '' }}
+      uses: r0adkll/sign-android-release@v1
+      id: sign_apk
+      with:
+        releaseDirectory: android/app/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Upload Release Artifacts (AAB & APK)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Habits-Production-AAB-APK
+        path: |
+          android/app/build/outputs/bundle/release/*.aab
+          android/app/build/outputs/apk/release/*.apk
+        retention-days: 14
